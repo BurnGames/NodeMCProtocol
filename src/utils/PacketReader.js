@@ -8,7 +8,7 @@ var entityMetadataTypes = {
     4: {type: 'string'},
     5: {type: 'slot'},
     6: {
-        type: 'container', typeArgs: {
+        type: 'container', args: {
             fields: [
                 {name: 'x', type: 'int'},
                 {name: 'y', type: 'int'},
@@ -71,26 +71,29 @@ PacketReader.prototype.read = read;
 PacketReader.prototype.write = write;
 PacketReader.prototype.sizeOf = sizeOf;
 PacketReader.prototype.compressPacketBuffer = function (buffer, callback) {
-    /*var dataLength = buffer.size;
-    zlib.deflateRaw(buffer, function (err, compressedBuffer) {
-        if(err) {
-            return callback(err);
-        }
-        var packetLength = sizeOfVarInt(dataLength) + compressedBuffer.length;
-        var size = sizeOfVarInt(packetLength) + packetLength;
-        var packetBuffer = new Buffer(size);
-        var offset = writeVarInt(packetLength, packetBuffer, 0);
-        offset = writeVarInt(dataLength, packetBuffer, offset);
-        writeBuffer(compressedBuffer, packetBuffer, offset);
-        callback(undefined, packetBuffer);
-    });*/
-    var sizeOfO = sizeOfVarInt(0);
-    var size = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
-    var packet = new Buffer(size);
-    var cursor = writeVarInt(buffer.length, packet, 0);
-    cursor = writeVarInt(0, packet, cursor);
-    writeBuffer(buffer, packet, cursor);
-    callback(undefined,packet);
+    if (buffer.length > 500) {
+        var dataLength = buffer.size;
+        zlib.deflateRaw(buffer, function (err, compressedBuffer) {
+            if (err) {
+                return callback(err);
+            }
+            var packetLength = sizeOfVarInt(dataLength) + compressedBuffer.length;
+            var size = sizeOfVarInt(packetLength) + packetLength;
+            var packetBuffer = new Buffer(size);
+            var offset = writeVarInt(packetLength, packetBuffer, 0);
+            offset = writeVarInt(dataLength, packetBuffer, offset);
+            writeBuffer(compressedBuffer, packetBuffer, offset);
+            callback(undefined, packetBuffer);
+        });
+    } else {
+        var sizeOfO = sizeOfVarInt(0);
+        var size = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
+        var packet = new Buffer(size);
+        var cursor = writeVarInt(buffer.length, packet, 0);
+        cursor = writeVarInt(0, packet, cursor);
+        writeBuffer(buffer, packet, cursor);
+        callback(undefined, packet);
+    }
 };
 
 function functionName(fun) {
@@ -113,7 +116,7 @@ function sizeOf(value, fieldInfo, rootNode) {
         throw new Error("missing data type: " + fieldInfo.type);
     }
     if (typeof type[2] === 'function') {
-        return type[2](value, fieldInfo.typeArgs, rootNode);
+        return type[2](value, fieldInfo.args, rootNode);
     } else {
         return type[2];
     }
@@ -129,7 +132,7 @@ function read(buffer, cursor, fieldInfo, rootNodes) {
             error: new Error("missing data type: " + fieldInfo.type)
         };
     }
-    var readResults = type[0](buffer, cursor, fieldInfo.typeArgs, rootNodes);
+    var readResults = type[0](buffer, cursor, fieldInfo.args, rootNodes);
     if (!readResults) {
         return {size: 0, value: undefined};
     }
@@ -149,7 +152,7 @@ function write(value, buffer, offset, fieldInfo, rootNode) {
             error: new Error("missing data type: " + fieldInfo.type)
         };
     }
-    return type[1](value, buffer, offset, fieldInfo.typeArgs, rootNode);
+    return type[1](value, buffer, offset, fieldInfo.args, rootNode);
 }
 
 function getField(countField, rootNode) {
@@ -455,7 +458,7 @@ var sizeOfRestBuffer = sizeOfBuffer;
 function writeArray(value, buffer, offset, typeArgs, rootNode) {
     for (var index in value) {
         if (value.hasOwnProperty(index)) {
-            offset = write(value[index], buffer, offset, {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+            offset = write(value[index], buffer, offset, {type: typeArgs.type, args: typeArgs.args}, rootNode);
         }
     }
     return offset;
@@ -468,7 +471,7 @@ function readArray(buffer, offset, typeArgs, rootNode) {
     };
     var count = getField(typeArgs.count, rootNode);
     for (var i = 0; i < count; i++) {
-        var readResults = read(buffer, offset, {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+        var readResults = read(buffer, offset, {type: typeArgs.type, args: typeArgs.args}, rootNode);
         results.size += readResults.size;
         offset += readResults.size;
         results.value.push(readResults.value);
@@ -480,7 +483,7 @@ function sizeOfArray(value, typeArgs, rootNode) {
     var size = 0;
     for (var index in value) {
         if (value.hasOwnProperty(index)) {
-            size += sizeOf(value[index], {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+            size += sizeOf(value[index], {type: typeArgs.type, args: typeArgs.args}, rootNode);
         }
     }
     return size;

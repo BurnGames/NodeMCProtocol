@@ -29,7 +29,11 @@ function Connection(server, socket) {
             packet = parsed.results;
             incoming = incoming.slice(parsed.size);
             var packetName = PacketStatus._packetNames[$this.status]['server'][packet.id];
-            $this.onIncomingPacket(packetName, packet);
+            (function (packetName, packet) {
+                setImmediate(function () {
+                    $this.onIncomingPacket(packetName, packet);
+                });
+            })(packetName, packet);
         }
     });
 }
@@ -41,43 +45,32 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
             this.status = PacketStatus.STATUS;
         } else if (packet.nextState == 2) {
             this.status = PacketStatus.LOGIN;
+        } else if (!packet.nextState) {
+            this.ping();
         }
     } else if (packetName == 'pingStart') {
-        // send em a proper ping!
-        var response = {
-            version: {
-                name: '1.8.1',
-                protocol: 47
-            },
-            players: {
-                max: this.server.getMaxPlayers(),
-                online: 0, // todo load online players
-                sample: [
-                    // todo load simple players
-                ]
-            },
-            description: {
-                text: this.server.getMotd()
-            }
-        };
-        this.write(0x00, {response: JSON.stringify(response)});
+        this.ping();
     } else if (packetName == 'loginStart') {
         this.username = packet.username;
-        var serverId = crypto.randomBytes(4).toString('hex');
-        this.verifyToken = crypto.randomBytes(4);
-        var publicKeyArray = this.server.key.toPublicPem('utf8').split('\n');
-        var publicKey = '';
-        for (var i = 0; i < publicKeyArray.length - 2; i++) {
-            publicKey += publicKeyArray[i];
+        if (this.socket.localAddress != '127.0.0.1' && this.socket.localAddress != 'localhost') {
+            var serverId = crypto.randomBytes(4).toString('hex');
+            this.verifyToken = crypto.randomBytes(4);
+            var publicKeyArray = this.server.key.toPublicPem('utf8').split('\n');
+            var publicKey = '';
+            for (var i = 0; i < publicKeyArray.length - 2; i++) {
+                publicKey += publicKeyArray[i];
+            }
+            this.publicKey = new Buffer(publicKey, 'base64');
+            var hash = crypto.createHash('sha1');
+            hash.update(serverId);
+            this.write(0x01, {
+                serverId: serverId,
+                publicKey: publicKey,
+                verifyToken: this.verifyToken
+            });
+        } else {
+            console.log('localhost connection');
         }
-        this.publicKey = new Buffer(publicKey, 'base64');
-        var hash = crypto.createHash('sha1');
-        hash.update(serverId);
-        this.write(0x01, {
-            serverId: serverId,
-            publicKey: publicKey,
-            verifyToken: this.verifyToken
-        })
     }
     else if (packetName == 'ping') {
         this.write(0x01, {ping: packet.ping});
@@ -85,6 +78,27 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
     console.log(packetName + ": " + JSON.stringify(packet));
     console.log('Changed status from ' + status + ' to ' + this.status);
 };
+
+Connection.prototype.ping = function () {
+    // send em a proper ping!
+    var response = {
+        version: {
+            name: '1.8.1',
+            protocol: 47
+        },
+        players: {
+            max: this.server.getMaxPlayers(),
+            online: 0, // todo load online players
+            sample: [
+                // todo load simple players
+            ]
+        },
+        description: {
+            text: this.server.getMotd()
+        }
+    };
+    this.write(0x00, {response: JSON.stringify(response)});
+}
 
 Connection.prototype.write = function (packetId, params) {
     var $this = this;
@@ -104,7 +118,8 @@ Connection.prototype.write = function (packetId, params) {
             throw err;
         }
         $this.socket.write(buffer);
-    })
+        console.log('Wrote data');
+    });
 };
 
 module.exports = Connection;
