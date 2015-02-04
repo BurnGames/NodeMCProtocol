@@ -11,10 +11,10 @@ function UUIDLookup() {
 
 UUIDLookup.prototype.findUUID = function (name, callback) {
     var cached = uuidCache[name];
-    if (cached && Date.now() - cached.time < 5 * 60 * 100) { // cache for 5 minutes
+    if (cached && Date.now() - cached.time < 5 * 60 * 1000) { // cache for 5 minutes
         return callback(undefined, cached.uuid);
     }
-    request({url: url + 'uuid/' + name}, function (error, response, body) {
+    request(url + 'uuid/' + name, function (error, response, body) {
         if (error) {
             return callback(error);
         }
@@ -32,10 +32,10 @@ UUIDLookup.prototype.findUUID = function (name, callback) {
 
 UUIDLookup.prototype.findName = function (uuid, callback) {
     var cached = nameCache[uuid];
-    if (cached && Date.now() - cached.time < 5 * 60 * 100) { // cache for 5 minutes
+    if (cached && Date.now() - cached.time < 5 * 60 * 1000) { // cache for 5 minutes
         return callback(undefined, cached.name);
     }
-    request({url: url + 'name/' + uuid}, function (error, response, body) {
+    request(url + 'name/' + uuid, function (error, response, body) {
         if (error) {
             return callback(error);
         }

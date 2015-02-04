@@ -39,6 +39,27 @@ Server.prototype.start = function () {
     }
 };
 
+Server.prototype.getResponse = function() {
+    return {
+        version: {
+            name: '1.8.1',
+            protocol: 47
+        },
+        players: {
+            max: this.getMaxPlayers(),
+            online: 0, // todo load online players
+            sample: [
+                // todo load simple players
+            ]
+        },
+        description: {
+            text: this.server.getMotd()
+        }
+    };
+};
+
+Server.prototype.
+
 Server.prototype.getMotd = function () {
     return 'Node Minecraft Server';
 };

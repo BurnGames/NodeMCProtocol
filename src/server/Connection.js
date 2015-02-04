@@ -98,7 +98,7 @@ Connection.prototype.ping = function () {
         }
     };
     this.write(0x00, {response: JSON.stringify(response)});
-}
+};
 
 Connection.prototype.write = function (packetId, params) {
     var $this = this;
