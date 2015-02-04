@@ -31,7 +31,7 @@ var states = {
             }
         },
         server: {
-            ping_start: {
+            pingStart: {
                 id: 0x00,
                 fields: {}
             },
@@ -210,36 +210,39 @@ var states = {
 var packetFields = {};
 var packetNames = {};
 var packetIds = {};
-var packetStates = {
-    client: {},
-    server: {}
-};
+var types = {};
 
 for (var name in states) {
     if (states.hasOwnProperty(name)) {
+        types[name] = name;
+        var $name = name;
         var state = states[name];
-        var lowerName = name.toLowerCase();
 
-        packetFields[lowerName] = {client: {}, server: {}};
-        packetNames[lowerName] = {client: {}, server: {}};
-        packetIds[lowerName] = {client: {}, server: {}};
+        packetFields[name] = {client: {}, server: {}};
+        packetNames[name] = {client: {}, server: {}};
+        packetIds[name] = {client: {}, server: {}};
 
-        (function (direction, state) {
+        (function setupDirection(direction, state) {
             for (var name in state[direction]) {
                 if (state[direction].hasOwnProperty(name)) {
                     var packet = state[direction][name];
                     var id = packet.id;
                     var fields = packet.fields;
 
-                    packetNames[lowerName][direction][id] = name;
-                    packetIds[lowerName][direction][name] = id;
-                    packetFields[lowerName][direction][id] = fields;
-                    packetFields[lowerName][direction][name] = state;
+                    packetNames[$name][direction][id] = name;
+                    packetIds[$name][direction][name] = id;
+                    packetFields[$name][direction][id] = fields;
+                    packetFields[$name][direction][name] = state;
                 }
             }
-            return this;
+            return setupDirection;
         })('client', state)('server', state);
     }
 }
 
-module.exports = states;
+types._packetFields = packetFields;
+types._packetNames = packetNames;
+types._packetIds = packetIds;
+types._states = states;
+
+module.exports = types;

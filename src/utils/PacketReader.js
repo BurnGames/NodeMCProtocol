@@ -1,3 +1,5 @@
+var zlib = require('zlib');
+
 var entityMetadataTypes = {
     0: {type: 'byte'},
     1: {type: 'short'},
@@ -47,6 +49,55 @@ function PacketReader() {
             entityMetadataTypeBytes[entityMetadataTypes[n].type] = n;
         }
     }
+    for (var type in types) {
+        if (types.hasOwnProperty(type)) {
+            var methods = types[type];
+            for (var i = 0; i < 2; i++) {
+                var method = methods[i];
+                if (!method) {
+                    continue;
+                }
+                this[functionName(method)] = method;
+            }
+            var third = methods[2];
+            if (typeof third == 'function') {
+                this[functionName(third)] = third;
+            }
+        }
+    }
+}
+
+PacketReader.prototype.read = read;
+PacketReader.prototype.write = write;
+PacketReader.prototype.sizeOf = sizeOf;
+PacketReader.prototype.compressPacketBuffer = function (buffer, callback) {
+    /*var dataLength = buffer.size;
+    zlib.deflateRaw(buffer, function (err, compressedBuffer) {
+        if(err) {
+            return callback(err);
+        }
+        var packetLength = sizeOfVarInt(dataLength) + compressedBuffer.length;
+        var size = sizeOfVarInt(packetLength) + packetLength;
+        var packetBuffer = new Buffer(size);
+        var offset = writeVarInt(packetLength, packetBuffer, 0);
+        offset = writeVarInt(dataLength, packetBuffer, offset);
+        writeBuffer(compressedBuffer, packetBuffer, offset);
+        callback(undefined, packetBuffer);
+    });*/
+    var sizeOfO = sizeOfVarInt(0);
+    var size = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
+    var packet = new Buffer(size);
+    var cursor = writeVarInt(buffer.length, packet, 0);
+    cursor = writeVarInt(0, packet, cursor);
+    writeBuffer(buffer, packet, cursor);
+    callback(undefined,packet);
+};
+
+function functionName(fun) {
+    var ret = fun.toString();
+    ret = ret.substr('function '.length);
+    ret = ret.substr(0, ret.indexOf('('));
+    return ret;
 }
 
 //
@@ -79,9 +130,15 @@ function read(buffer, cursor, fieldInfo, rootNodes) {
         };
     }
     var readResults = type[0](buffer, cursor, fieldInfo.typeArgs, rootNodes);
-    if (readResults.error) return {error: readResults.error};
+    if (!readResults) {
+        return {size: 0, value: undefined};
+    }
+    if (readResults.error) {
+        return {error: readResults.error};
+    }
     return readResults;
 }
+
 function write(value, buffer, offset, fieldInfo, rootNode) {
     if (fieldInfo.condition && !fieldInfo.condition(rootNode)) {
         return offset;
@@ -95,9 +152,26 @@ function write(value, buffer, offset, fieldInfo, rootNode) {
     return type[1](value, buffer, offset, fieldInfo.typeArgs, rootNode);
 }
 
+function getField(countField, rootNode) {
+    var countFieldArr = countField.split(".");
+    var count = rootNode;
+    for (var index = 0; index < countFieldArr.length; index++) {
+        count = count[countFieldArr[index]];
+    }
+    return count;
+}
+
+
 //
 // String
 //
+
+function writeString(value, buffer, offset) {
+    var length = Buffer.byteLength(value, 'utf8');
+    offset = writeVarInt(length, buffer, offset);
+    buffer.write(value, offset, length, 'utf8');
+    return offset + length;
+}
 
 function readString(buffer, offset) {
     var length = readVarInt(buffer, offset);
@@ -116,9 +190,188 @@ function readString(buffer, offset) {
     };
 }
 
+function sizeOfString(value) {
+    var length = Buffer.byteLength(value, 'utf8');
+    return sizeOfVarInt(length) + length;
+}
+
+function sizeOfUString(value) {
+    var length = Buffer.byteLength(value, 'utf8');
+    return sizeOfVarInt(length) + length;
+}
+
+//
+// Integer
+//
+
+function writeInt(value, buffer, offset) {
+    buffer.writeInt32BE(value, offset);
+    return offset + 4;
+}
+
+function writeVarInt(value, buffer, offset) {
+    var cursor = 0;
+    while (value & ~0x7F) {
+        buffer.writeUInt8((value & 0xFF) | 0x80, offset + cursor);
+        cursor++;
+        value >>>= 7;
+    }
+    buffer.writeUInt8(value, offset + cursor);
+    return offset + cursor + 1;
+}
+
+function readInt(buffer, offset) {
+    if (offset + 4 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readInt32BE(offset);
+    return {
+        value: value,
+        size: 4
+    };
+}
+
+function readVarInt(buffer, offset) {
+    var result = 0;
+    var shift = 0;
+    var cursor = offset;
+    var i = 0;
+    while (true) {
+        if (cursor + 1 > buffer.length) {
+            return undefined;
+        }
+        var b = buffer.readUInt8(cursor);
+        result |= ((b & 0x7f) << shift); // Add the bits to our number, except MSB
+        cursor++;
+        if (!(b & 0x80)) { // If the MSB is not set, we return the number
+            return {
+                value: result,
+                size: cursor - offset
+            };
+        }
+        shift += 7; // we only have 7 bits, MSB being the return-trigger
+    }
+}
+
+function sizeOfVarInt(value) {
+    var cursor = 0;
+    while (value & ~0x7F) {
+        value >>>= 7;
+        cursor++;
+    }
+    return cursor + 1;
+}
+
+
+//
+// Float
+//
+
+function writeFloat(value, buffer, offset) {
+    buffer.writeFloatBE(value, offset);
+    return offset + 4;
+}
+
+function readFloat(buffer, offset) {
+    if (offset + 4 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readFloatBE(offset);
+    return {
+        value: value,
+        size: 4
+    };
+}
+
+//
+// Double
+//
+
+function writeDouble(value, buffer, offset) {
+    buffer.writeDoubleBE(value, offset);
+    return offset + 8;
+}
+
+function readDouble(buffer, offset) {
+    if (offset + 8 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readDoubleBE(offset);
+    return {
+        value: value,
+        size: 8
+    };
+}
+
+//
+// Long
+//
+
+function writeLong(value, buffer, offset) {
+    buffer.writeInt32BE(value[0], offset);
+    buffer.writeInt32BE(value[1], offset + 4);
+    return offset + 8;
+}
+
+function readLong(buffer, offset) {
+    if (offset + 8 > buffer.length) {
+        return null;
+    }
+    return {
+        value: [buffer.readInt32BE(offset), buffer.readInt32BE(offset + 4)],
+        size: 8
+    };
+}
+
+//
+// Byte
+//
+
+function writeByte(value, buffer, offset) {
+    buffer.writeInt8(value, offset);
+    return offset + 1;
+}
+
+function writeUByte(value, buffer, offset) {
+    buffer.writeUInt8(value, offset);
+    return offset + 1;
+}
+
+function readByte(buffer, offset) {
+    if (offset + 1 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readInt8(offset);
+    return {
+        value: value,
+        size: 1
+    };
+}
+
+function readUByte(buffer, offset) {
+    if (offset + 1 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readUInt8(offset);
+    return {
+        value: value,
+        size: 1
+    };
+}
+
 //
 // Short
 //
+
+function writeShort(value, buffer, offset) {
+    buffer.writeInt16BE(value, offset);
+    return offset + 2;
+}
+
+function writeUShort(value, buffer, offset) {
+    buffer.writeUInt16BE(value, offset);
+    return offset + 2;
+}
 
 function readShort(buffer, offset) {
     if (offset + 2 > buffer.length) {
@@ -131,6 +384,233 @@ function readShort(buffer, offset) {
     };
 }
 
+function readUShort(buffer, offset) {
+    if (offset + 2 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readUInt16BE(offset);
+    return {
+        value: value,
+        size: 2
+    };
+}
+
+
+//
+// Boolean
+//
+
+function writeBool(value, buffer, offset) {
+    buffer.writeInt8(+value, offset);
+    return offset + 1;
+}
+
+function readBool(buffer, offset) {
+    if (offset + 1 > buffer.length) {
+        return null;
+    }
+    var value = buffer.readInt8(offset);
+    return {
+        value: !!value,
+        size: 1
+    };
+}
+
+//
+// Buffer
+//
+
+function writeBuffer(value, buffer, offset) {
+    value.copy(buffer, offset);
+    return offset + value.length;
+}
+
+var writeRestBuffer = writeBuffer;
+
+function readBuffer(buffer, offset, typeArgs, rootNode) {
+    var count = getField(typeArgs.count, rootNode);
+    return {
+        value: buffer.slice(offset, offset + count),
+        size: count
+    };
+}
+
+function readRestBuffer(buffer, offset, typeArgs, rootNode) {
+    return {
+        value: buffer.slice(offset),
+        size: buffer.length - offset
+    };
+}
+
+function sizeOfBuffer(value) {
+    return value.length;
+}
+
+var sizeOfRestBuffer = sizeOfBuffer;
+
+//
+// Array
+//
+
+function writeArray(value, buffer, offset, typeArgs, rootNode) {
+    for (var index in value) {
+        if (value.hasOwnProperty(index)) {
+            offset = write(value[index], buffer, offset, {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+        }
+    }
+    return offset;
+}
+
+function readArray(buffer, offset, typeArgs, rootNode) {
+    var results = {
+        value: [],
+        size: 0
+    };
+    var count = getField(typeArgs.count, rootNode);
+    for (var i = 0; i < count; i++) {
+        var readResults = read(buffer, offset, {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+        results.size += readResults.size;
+        offset += readResults.size;
+        results.value.push(readResults.value);
+    }
+    return results;
+}
+
+function sizeOfArray(value, typeArgs, rootNode) {
+    var size = 0;
+    for (var index in value) {
+        if (value.hasOwnProperty(index)) {
+            size += sizeOf(value[index], {type: typeArgs.type, typeArgs: typeArgs.typeArgs}, rootNode);
+        }
+    }
+    return size;
+}
+
+//
+// Position
+//
+
+function writePosition(value, buffer, offset) {
+    var longVal = [];
+    longVal[0] = ((value.x & 0x3FFFFFF) << 6) | ((value.y & 0xFC0) >> 6);
+    longVal[1] = ((value.y & 0x3F) << 26) | (value.z & 0x3FFFFFF);
+    return writeLong(longVal, buffer, offset);
+}
+
+function readPosition(buffer, offset) {
+    var longVal = readLong(buffer, offset).value;
+    var x = longVal[0] >> 6;
+    var y = ((longVal[0] & 0x3F) << 6) | (longVal[1] >> 26);
+    var z = longVal[1] << 6 >> 6;
+    return {
+        value: {x: x, y: y, z: z},
+        size: 8
+    };
+}
+
+//
+// Slot
+//
+
+function writeSlot(value, buffer, offset) {
+    buffer.writeInt16BE(value.id, offset);
+    if (value.id === -1) return offset + 2;
+    buffer.writeInt8(value.itemCount, offset + 2);
+    buffer.writeInt16BE(value.itemDamage, offset + 3);
+    var nbtDataSize = value.nbtData.length;
+    if (nbtDataSize === 0) nbtDataSize = -1; // I don't know wtf mojang smokes
+    buffer.writeInt16BE(nbtDataSize, offset + 5);
+    value.nbtData.copy(buffer, offset + 7);
+    return offset + 7 + value.nbtData.length;
+}
+
+function readSlot(buffer, offset) {
+    var results = readShort(buffer, offset);
+    if (!results) {
+        return null;
+    }
+    var blockId = results.value;
+    var cursor = offset + results.size;
+    if (blockId === -1) {
+        return {
+            value: {id: blockId},
+            size: cursor - offset
+        };
+    }
+    var cursorEnd = cursor + 5;
+    if (cursorEnd > buffer.length) return null;
+    var itemCount = buffer.readInt8(cursor);
+    var itemDamage = buffer.readInt16BE(cursor + 1);
+    var nbtDataSize = buffer.readInt16BE(cursor + 3);
+    if (nbtDataSize === -1) nbtDataSize = 0;
+    var nbtDataEnd = cursorEnd + nbtDataSize;
+    if (nbtDataEnd > buffer.length) return null;
+    var nbtData = buffer.slice(cursorEnd, nbtDataEnd);
+    return {
+        value: {
+            id: blockId,
+            itemCount: itemCount,
+            itemDamage: itemDamage,
+            nbtData: nbtData
+        },
+        size: nbtDataEnd - offset
+    };
+}
+
+function sizeOfSlot(value) {
+    return value.id === -1 ? 2 : 7 + value.nbtData.length;
+}
+
+//
+// Container
+//
+
+function writeContainer(value, buffer, offset, typeArgs, rootNode) {
+    rootNode.this = value;
+    for (var index in typeArgs.fields) {
+        if (typeArgs.fields.hasOwnProperty(index)) {
+            if (!value.hasOwnProperty(typeArgs.fields[index].name && typeArgs.fields[index].type != "count" && !typeArgs.fields[index].condition))
+                console.debug(new Error("Missing Property " + typeArgs.fields[index].name).stack);
+            offset = write(value[typeArgs.fields[index].name], buffer, offset, typeArgs.fields[index], rootNode);
+        }
+    }
+    delete rootNode.this;
+    return offset;
+}
+
+
+function readContainer(buffer, offset, typeArgs, rootNode) {
+    var results = {
+        value: {},
+        size: 0
+    };
+    rootNode.this = results.value;
+    for (var index in typeArgs.fields) {
+        if (typeArgs.fields.hasOwnProperty(index)) {
+            var readResults = read(buffer, offset, typeArgs.fields[index], rootNode);
+            if (readResults == null) {
+                continue;
+            }
+            results.size += readResults.size;
+            offset += readResults.size;
+            results.value[typeArgs.fields[index].name] = readResults.value;
+        }
+    }
+    delete rootNode.this;
+    return results;
+}
+
+function sizeOfContainer(value, typeArgs, rootNode) {
+    var size = 0;
+    rootNode.this = value;
+    for (var index in typeArgs.fields) {
+        if (typeArgs.fields.hasOwnProperty(index)) {
+            size += sizeOf(value[typeArgs.fields[index].name], typeArgs.fields[index], rootNode);
+        }
+    }
+    delete rootNode.this;
+    return size;
+}
 
 //
 // UUID
@@ -155,6 +635,23 @@ function readUUID(buffer, offset) {
         size: 16
     };
 }
+
+//
+// Count
+//
+
+function writeCount(value, buffer, offset, typeArgs, rootNode) {
+    return write(getField(typeArgs.countFor, rootNode).length, buffer, offset, {type: typeArgs.type}, rootNode);
+}
+
+function readCount(buffer, offset, typeArgs, rootNode) {
+    return read(buffer, offset, {type: typeArgs.type}, rootNode);
+}
+
+function sizeOfCount(value, typeArgs, rootNode) {
+    return sizeOf(getField(typeArgs.countFor, rootNode).length, {type: typeArgs.type}, rootNode);
+}
+
 
 //
 // Entity Metadata
