@@ -23,6 +23,11 @@ function Server(ip, port) {
     this.server = net.createServer(function (socket) {
         $this.connections.push(new Connection($this, socket, $this.getPlayerListener()));
     });
+
+    process.on('SIGHUP', function () {
+        $this.stop();
+        process.exit();
+    });
 }
 
 Server.prototype.start = function () {
@@ -41,10 +46,18 @@ Server.prototype.start = function () {
     }
 };
 
+Server.prototype.stop = function () {
+    if (!this.listening) {
+        throw new Error('Server has not been started!');
+    }
+    this.server.close();
+    console.log('Server closed.');
+};
+
 Server.prototype.onDisconnect = function (connection) {
     var length = this.connections.length;
     while (length--) {
-        if(this.connections[length] == connection) {
+        if (this.connections[length] == connection) {
             this.connections.splice(length, 1);
         }
     }
