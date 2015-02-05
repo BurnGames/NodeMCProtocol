@@ -2,6 +2,22 @@
 ===
 This project can be used to connect and communicate with the Minecraft client.
 
+Example Usage
+===
+
+    var server = new Server(25565);
+    server.start();
+
+Running Tests
+===
+Running tests is very simple. First run
+
+    npm install -g nodeunit
+
+Then run
+
+    nodeunit tests
+
 Why?
 ===
 This is but a single piece of a large effort to create an entire Minecraft server written in Node.
