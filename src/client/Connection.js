@@ -4,19 +4,21 @@ var PacketReader = require('../utils/PacketReader');
 var UUIDLookup = new (require('../utils/UUIDLookup'))();
 var crypto = require('crypto');
 
-function Connection(server, socket) {
+function Connection(server, socket, player) {
     var $this = this;
 
     this.status = PacketStatus.HANDSHAKING;
     this.toParse = {};
     this.server = server;
     this.socket = socket;
+    this.player = player;
     this.handler = new PacketHandler();
     this.reader = new PacketReader();
 
-    this.ip = socket.remoteAddress;
+    player.ip = socket.remoteAddress;
 
     var incoming = new Buffer(0);
+    console.log('New connection for ' + this.ip + ":" + socket.remotePort);
     this.socket.on('data', function (data) {
         incoming = Buffer.concat([incoming, data]);
         var parsed;
@@ -34,6 +36,9 @@ function Connection(server, socket) {
             var packetName = PacketStatus._packetNames[$this.status]['server'][packet.id];
             $this.onIncomingPacket(packetName, packet);
         }
+    });
+    this.socket.on('close', function () {
+        $this.server.onDisconnect($this);
     });
 }
 
@@ -56,14 +61,13 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
         }
     } else if (this.status == PacketStatus.LOGIN) {
         if (packetName == 'loginStart') {
-            this.username = packet.username;
             console.log('Starting login process for ' + this.ip);
-            UUIDLookup.findUUID(this.username, function (err, uuid) {
+            UUIDLookup.findUUID(packet.username, function (err, uuid) {
                 if (err) {
                     throw err;
                 }
-                $this.uuid = uuid;
-                if ($this.ip == '127.0.0.1') {
+                $this.player.updateLogin(packet.username, uuid);
+                if ($this.player.ip == '127.0.0.1') {
                     // no encryption, localhost
                     $this.finishLogin();
                 } else {
@@ -71,8 +75,14 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
                 }
             });
         }
+    } else if (this.status == PacketStatus.PLAY) {
+        if (packetName == 'keepAlive') {
+            this.write(0x00, {keepAliveId: Math.floor(Math.random() * 2147483647)}); // 2147483647 is the highest possible varint
+        } else if (packetName == 'position') {
+            delete packet.id;
+            this.player.updatePosition(packet);
+        }
     }
-    console.log(packetName + ': ' + JSON.stringify(packet));
 };
 
 Connection.prototype.startEncryption = function () {
@@ -94,33 +104,17 @@ Connection.prototype.startEncryption = function () {
 };
 
 Connection.prototype.finishLogin = function () {
-    this.write(0x02, {uuid: this.uuid, username: this.username});
+    this.write(0x02, {uuid: this.player.uuid, username: this.player.username});
     //this.write(0x03, {threshold: -1});
     this.status = PacketStatus.PLAY;
+    this.player.setConnected(true);
     // send location
     this.write(0x01, {entityId: 1, gameMode: 0, dimension: 0, difficulty: 0, maxPlayers: this.server.getMaxPlayers(), levelType: 'default', reducedDebugMode: false});
 };
 
 Connection.prototype.ping = function () {
     // send em a proper ping!
-    var response = {
-        version: {
-            name: '1.8.1',
-            protocol: 47
-        },
-        players: {
-            max: this.server.getMaxPlayers(),
-            online: 0, // todo load online players
-            sample: [
-                // todo load simple players
-            ]
-        },
-        description: {
-            text: this.server.getMotd()
-        },
-        favicon: this.server.getFavicon()
-    };
-    this.write(0x00, {response: JSON.stringify(response)});
+    this.write(0x00, {response: JSON.stringify(this.server.getResponse())});
 };
 
 Connection.prototype.write = function (packetId, params) {
@@ -141,7 +135,6 @@ Connection.prototype.write = function (packetId, params) {
             throw err;
         }
         $this.socket.write(buffer);
-        console.log('Wrote data: ' + $this.status + ' ' + packetId + ' length: ' + buffer.length);
     });
 };
 

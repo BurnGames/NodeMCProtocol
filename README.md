@@ -9,6 +9,5 @@ This is but a single piece of a large effort to create an entire Minecraft serve
 To Do (feel free to take one and make a PR!)
 ===
 - Finish typing up packets
-- Fix server list ping
-- Fix logging in
 - Fix packet compression
+- Work on sending map packets

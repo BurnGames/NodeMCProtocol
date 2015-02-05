@@ -1,7 +1,8 @@
 var net = require('net');
 var fs = require('fs');
 var ursa = require('ursa');
-var Connection = require('./Connection');
+var Connection = require('./../client/Connection');
+var SamplePlayer = require('./../client/SamplePlayer');
 
 function Server(ip, port) {
     var $this = this;
@@ -20,7 +21,7 @@ function Server(ip, port) {
     this.key = ursa.generatePrivateKey(1024);
 
     this.server = net.createServer(function (socket) {
-        $this.connections.push(new Connection($this, socket));
+        $this.connections.push(new Connection($this, socket, $this.getPlayerListener()));
     });
 }
 
@@ -40,22 +41,47 @@ Server.prototype.start = function () {
     }
 };
 
+Server.prototype.onDisconnect = function (connection) {
+    var length = this.connections.length;
+    while (length--) {
+        if(this.connections[length] == connection) {
+            this.connections.splice(length, 1);
+        }
+    }
+};
+
+Server.prototype.getPlayerListener = function () {
+    // should be overridden by server instance
+    return new SamplePlayer();
+};
+
 Server.prototype.getResponse = function () {
+    // should be mostly overridden
+    var sample = [];
+    for (var i = 0; i < this.connections.length; i++) {
+        var player = this.connections[i].player;
+        if (player.connected) {
+            sample.push({
+                name: player.username,
+                uuid: player.uuid
+            });
+        }
+    }
+    console.log('Connections: ' + this.connections.length);
     return {
         version: {
             name: '1.8.1',
             protocol: 47
         },
         players: {
-            max: this.getMaxPlayers(),
-            online: 0, // todo load online players
-            sample: [
-                // todo load simple players
-            ]
+            max: 20,
+            online: sample.length,
+            sample: sample
         },
         description: {
-            text: this.server.getMotd()
-        }
+            text: 'Node Minecraft Server'
+        },
+        favicon: this.getFavicon()
     };
 };
 
@@ -66,16 +92,8 @@ Server.prototype.getFavicon = function () {
     return this.favicon;
 };
 
-Server.prototype.getMotd = function () {
-    return 'Node Minecraft Server';
-};
-
 Server.prototype.getMaxPlayers = function () {
     return 20;
-};
-
-Server.prototype.isOnlineMode = function () {
-    return true;
 };
 
 module.exports = Server;

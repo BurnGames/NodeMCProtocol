@@ -93,7 +93,6 @@ PacketReader.prototype.compressPacketBuffer = function (packetId, buffer, handsh
         var sizeOfO = 0;
         var length = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
         var packet = new Buffer(length);
-        console.log('total size for packetId ' + packetId + ' is: ' + (buffer.length + sizeOfO) + " sizeOfO: " + sizeOfO + " buffer length: " + buffer.length);
         var cursor = writeVarInt(buffer.length + sizeOfO, packet, 0); // write total length
         cursor = writeVarInt(packetId, packet, cursor); // write packet id
         writeBuffer(buffer, packet, cursor);

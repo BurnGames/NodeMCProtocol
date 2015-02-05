@@ -324,6 +324,202 @@ var states = {
                     z: "int",
                     count: "short"
                 }
+            },
+            entityVelocity: {
+                id: 0x12,
+                fields: {
+                    entityId: "int",
+                    velocityX: "short",
+                    velocityY: "short",
+                    velocityZ: "short"
+                }
+            },
+            entityDestroy: {
+                id: 0x13,
+                fields: {
+                    count: {
+                        type: "count",
+                        args: {
+                            type: "byte",
+                            countFor: "entityIds"
+                        }
+                    },
+                    entityIds: {
+                        type: "array",
+                        args: {
+                            type: "int",
+                            count: "count"
+                        }
+                    }
+                }
+            },
+            entity: {
+                id: 0x14,
+                fields: {
+                    entityId: "int"
+                }
+            },
+            smallEntityMove: {
+                id: 0x15,
+                fields: {
+                    entityId: "varint",
+                    dX: "byte",
+                    dY: "byte",
+                    dZ: "byte",
+                    onGround: "bool"
+                }
+            },
+            entityLook: {
+                id: 0x16,
+                fields: {
+                    entityId: "varint",
+                    yaw: "byte",
+                    pitch: "byte",
+                    onGround: "bool"
+                }
+            },
+            entityLookAndMove: {
+                id: 0x17,
+                fields: {
+                    entityId: "varint",
+                    dX: "byte",
+                    dY: "byte",
+                    dZ: "byte",
+                    yaw: "byte",
+                    pitch: "byte",
+                    onGround: "bool"
+                }
+            },
+            entityTeleport: {
+                id: 0x18,
+                fields: {
+                    entityId: "varint",
+                    x: "int",
+                    y: "int",
+                    z: "int",
+                    yaw: "byte",
+                    pitch: "byte",
+                    onGround: "bool"
+                }
+            },
+            entityHeadRotation: {
+                id: 0x19,
+                fields: {
+                    entityId: "varint",
+                    headYaw: "byte"
+                }
+            },
+            entityStatus: {
+                id: 0x1a,
+                fields: {
+                    entityId: "int",
+                    entityStatus: "byte"
+                }
+            },
+            attachEntity: {
+                id: 0x1b,
+                fields: {
+                    entityId: "int",
+                    vehicleId: "int",
+                    leash: "bool"
+                }
+            }
+        },
+        server: {
+            keepAlive: {
+                id: 0x00,
+                fields: {
+                    keepAliveId: "varint"
+                }
+            },
+            chat: {
+                id: 0x01,
+                fields: {
+                    message: "string"
+                }
+            },
+            useEntity: {
+                id: 0x02,
+                fields: {
+                    target: "varint",
+                    mouse: "byte",
+                    x: "float",
+                    y: "float",
+                    size: "float"
+                }
+            },
+            flying: {
+                id: 0x03,
+                fields: {
+                    onGround: "bool"
+                }
+            },
+            position: {
+                id: 0x04,
+                fields: {
+                    x: "double",
+                    y: "double",
+                    z: "double",
+                    stance: "double",
+                    onGround: "bool"
+                }
+            },
+            look: {
+                id: 0x05,
+                fields: {
+                    yaw: "float",
+                    pitch: "float",
+                    onGround: "bool"
+                }
+            },
+            positionLook: {
+                id: 0x06,
+                fields: {
+                    x: "double",
+                    y: "double",
+                    z: "double",
+                    stance: "double",
+                    yaw: "float",
+                    pitch: "float",
+                    onGround: "bool"
+                }
+            },
+            blockDig: {
+                id: 0x07,
+                fields: {
+                    status: "byte",
+                    location: "position",
+                    face: "byte"
+                }
+            },
+            blockPlace: {
+                id: 0x08,
+                fields: {
+                    location: "position",
+                    direction: "byte",
+                    heldItem: "slot",
+                    cursorX: "byte",
+                    cursorY: "byte",
+                    cursorZ: "byte"
+                }
+            },
+            heldItemSlot: {
+                id: 0x09,
+                fields: {
+                    slotId: "short"
+                }
+            },
+            armAnimation: {
+                id: 0x0a,
+                fields: [] // wiki.vg says no fields, as this is an arm swing
+            },
+            entityAction: {
+                id: 0x0b,
+                fields: {
+                    entityId: "varint",
+                    actionId: "varint",
+                    jumpBoost: "varint"
+                }
             }
         }
     }
