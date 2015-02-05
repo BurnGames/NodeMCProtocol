@@ -11,3 +11,4 @@ To Do (feel free to take one and make a PR!)
 - Finish typing up packets
 - Fix packet compression
 - Work on sending map packets
+- While one client was "downloading terrain" (aka the above todo) my other one couldn't/wouldn't read the Server List Ping
