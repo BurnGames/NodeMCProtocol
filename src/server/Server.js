@@ -1,6 +1,6 @@
 var net = require('net');
 var fs = require('fs');
-var ursa = require('ursa');
+var NodeRSA = require("node-rsa");
 var Connection = require('./../client/Connection');
 var SamplePlayer = require('./../client/SamplePlayer');
 
@@ -18,15 +18,25 @@ function Server(ip, port) {
     this.connections = [];
 
     // generate our ssl key
-    this.key = ursa.generatePrivateKey(1024);
+    this.rsa = new NodeRSA();
+    this.rsa.generateKeyPair(1024, 65537);
+    this.key = (this.rsa.exportKey('public') + "\n").toString('utf-8');
+    console.log("Key: " + this.key);
 
     this.server = net.createServer(function (socket) {
         $this.connections.push(new Connection($this, socket, $this.getPlayerListener()));
     });
 
     process.on('SIGHUP', function () {
-        $this.stop();
-        process.exit();
+        if ($this.listening) {
+            $this.stop();
+        }
+    });
+
+    process.on('SIGINT', function () {
+        if ($this.listening) {
+            $this.stop();
+        }
     });
 }
 
