@@ -93,7 +93,7 @@ PacketHandler.prototype.createPacketBuffer = function (packetId, state, params) 
     var length = 0;
     if (typeof packetId == 'string' && typeof state != 'string' && !params) {
         params = state;
-        state = PacketStatus._states['server'][packetId];
+        state = PacketStatus._states['client'][packetId];
     }
     if (typeof packetId == 'string') {
         packetId = PacketStatus._packetIds[state][packetId];
@@ -120,7 +120,13 @@ PacketHandler.prototype.createPacketBuffer = function (packetId, state, params) 
         packet = newPacketInfo;
     }
     packet.forEach(function (fieldInfo) {
-        length += $this.reader.sizeOf(params[fieldInfo.name], fieldInfo, params);
+        try {
+            length += $this.reader.sizeOf(params[fieldInfo.name], fieldInfo, params);
+        } catch (err) {
+            // modify the message for easier debugging
+            err.message = 'Failed to get field size for field ' + fieldInfo.name + ' with params ' + JSON.stringify(params) + '\n' + err.message;
+            throw err;
+        }
     });
     length += this.reader.sizeOfVarInt(packetId);
     var buffer = new Buffer(length);
@@ -128,9 +134,15 @@ PacketHandler.prototype.createPacketBuffer = function (packetId, state, params) 
     packet.forEach(function (fieldInfo) {
         var value = params[fieldInfo.name];
         if (typeof value == "undefined" && fieldInfo.type != "count" && !fieldInfo.condition) {
-            throw new Error('Missing property ' + fieldInfo.name);
+            throw new Error('Missing property ' + fieldInfo.name + ' inside ' + packetId);
         }
-        offset = $this.reader.write(value, buffer, offset, fieldInfo, params);
+        try {
+            offset = $this.reader.write(value, buffer, offset, fieldInfo, params);
+        } catch (err) {
+            // modify the message for easier debugging
+            err.message = 'Failed to write field ' + fieldInfo.name + '\n' + err.message;
+            throw err;
+        }
     });
     return buffer;
 };

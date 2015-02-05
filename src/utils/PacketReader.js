@@ -70,27 +70,32 @@ function PacketReader() {
 PacketReader.prototype.read = read;
 PacketReader.prototype.write = write;
 PacketReader.prototype.sizeOf = sizeOf;
-PacketReader.prototype.compressPacketBuffer = function (buffer, callback) {
-    if (buffer.length > 500) {
-        var dataLength = buffer.size;
-        zlib.deflateRaw(buffer, function (err, compressedBuffer) {
+PacketReader.prototype.compressPacketBuffer = function (packetId, buffer, handshakng, compression, callback) {
+    if (compression !== true && compression !== false) {
+        callback = compression;
+        compression = false;
+    }
+    if (compression) {
+        var uncompressedLength = buffer.length;
+        zlib.deflateRaw(buffer, function (err, buffer) {
             if (err) {
                 return callback(err);
             }
-            var packetLength = sizeOfVarInt(dataLength) + compressedBuffer.length;
-            var size = sizeOfVarInt(packetLength) + packetLength;
-            var packetBuffer = new Buffer(size);
-            var offset = writeVarInt(packetLength, packetBuffer, 0);
-            offset = writeVarInt(dataLength, packetBuffer, offset);
-            writeBuffer(compressedBuffer, packetBuffer, offset);
-            callback(undefined, packetBuffer);
+            var dataLength = sizeOfVarInt(buffer.length);
+            var packetLength = dataLength + sizeOfVarInt(uncompressedLength);
+            var packet = new Buffer(packetLength);
+            var cursor = writeVarInt(packetLength, packet, 0);
+            cursor = writeVarInt(dataLength, packet, cursor);
+            writeBuffer(buf, packet, cursor);
+            callback(undefined, packet);
         });
     } else {
-        var sizeOfO = sizeOfVarInt(0);
-        var size = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
-        var packet = new Buffer(size);
-        var cursor = writeVarInt(buffer.length, packet, 0);
-        cursor = writeVarInt(0, packet, cursor);
+        var sizeOfO = 0;
+        var length = sizeOfVarInt(buffer.length + sizeOfO) + sizeOfO + buffer.length;
+        var packet = new Buffer(length);
+        console.log('total size for packetId ' + packetId + ' is: ' + (buffer.length + sizeOfO) + " sizeOfO: " + sizeOfO + " buffer length: " + buffer.length);
+        var cursor = writeVarInt(buffer.length + sizeOfO, packet, 0); // write total length
+        cursor = writeVarInt(packetId, packet, cursor); // write packet id
         writeBuffer(buffer, packet, cursor);
         callback(undefined, packet);
     }
@@ -194,6 +199,9 @@ function readString(buffer, offset) {
 }
 
 function sizeOfString(value) {
+    if (typeof value != 'string') {
+        throw new Error('Value must be string instead of type "' + (typeof value) + '" and possibly value "' + (value ? value.toString() : value) + '"');
+    }
     var length = Buffer.byteLength(value, 'utf8');
     return sizeOfVarInt(length) + length;
 }

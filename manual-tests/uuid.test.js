@@ -11,6 +11,7 @@ lookup.findUUID(name, function (error, uuid) {
         if (error) {
             throw error;
         }
+        console.log(name + ':' + uuid);
         console.log('Is equal: ' + (name == retrievedName));
     });
 });

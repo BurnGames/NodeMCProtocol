@@ -1,4 +1,5 @@
 var net = require('net');
+var fs = require('fs');
 var ursa = require('ursa');
 var Connection = require('./Connection');
 
@@ -39,7 +40,7 @@ Server.prototype.start = function () {
     }
 };
 
-Server.prototype.getResponse = function() {
+Server.prototype.getResponse = function () {
     return {
         version: {
             name: '1.8.1',
@@ -58,7 +59,12 @@ Server.prototype.getResponse = function() {
     };
 };
 
-Server.prototype.
+Server.prototype.getFavicon = function () {
+    if (!this.favicon) {
+        this.favicon = 'data:image/png;base64,' + new Buffer(fs.readFileSync(__dirname + '/../../resources/NodeMCFavicon.png'), 'binary').toString('base64');
+    }
+    return this.favicon;
+};
 
 Server.prototype.getMotd = function () {
     return 'Node Minecraft Server';

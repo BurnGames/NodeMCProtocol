@@ -188,7 +188,7 @@ var states = {
             updateHealth: {
                 id: 0x06,
                 fields: {
-                    health: "",
+                    health: "float",
                     food: "varint",
                     foodSaturation: "float"
                 }
@@ -202,7 +202,129 @@ var states = {
                     levelType: "string"
                 }
             },
-            position: {}
+            position: {
+                id: 0x08,
+                fields: {
+                    x: "double",
+                    y: "double",
+                    z: "double",
+                    yaw: "float",
+                    pitch: "float",
+                    flags: "byte"
+                }
+            },
+            heldItemSlot: {
+                id: 0x09,
+                fields: {
+                    slot: "byte"
+                }
+            },
+            bed: {
+                id: 0x0a,
+                fields: {
+                    entityId: "int",
+                    location: "position"
+                }
+            },
+            animation: {
+                id: 0x0b,
+                fields: {
+                    entityId: "varint",
+                    animation: "byte"
+                }
+            },
+            namedEntitySpawn: {
+                id: 0x0c,
+                fields: {
+                    entityId: "varint",
+                    playerUUID: "UUID",
+                    x: "int",
+                    y: "int",
+                    z: "int",
+                    yaw: "byte",
+                    pitch: "byte",
+                    currentItem: "short",
+                    metadata: "entityMetadata"
+                }
+            },
+            collect: {
+                id: 0x0d,
+                fields: {
+                    collected: "varint",
+                    collector: "varint"
+                }
+            },
+            spawnEntity: {
+                id: 0x0e,
+                fields: {
+                    entityId: "varint",
+                    type: "byte",
+                    x: "int",
+                    y: "int",
+                    z: "int",
+                    pitch: "byte",
+                    yaw: "byte",
+                    objectData: {
+                        type: "container",
+                        typeArgs: {
+                            fields: [
+                                {name: "intField", type: "int"},
+                                {
+                                    name: "velocityX", type: "short", condition: function (field_values) {
+                                    return field_values['this']['intField'] != 0;
+                                }
+                                },
+                                {
+                                    name: "velocityY", type: "short", condition: function (field_values) {
+                                    return field_values['this']['intField'] != 0;
+                                }
+                                },
+                                {
+                                    name: "velocityZ", type: "short", condition: function (field_values) {
+                                    return field_values['this']['intField'] != 0;
+                                }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            spawnEntityLiving: {
+                id: 0x0f,
+                fields: {
+                    entityId: "varint",
+                    type: "ubyte",
+                    x: "int",
+                    y: "int",
+                    z: "int",
+                    yaw: "byte",
+                    pitch: "byte",
+                    headPitch: "byte",
+                    velocityX: "short",
+                    velocityY: "short",
+                    velocityZ: "short",
+                    metadata: "entityMetadata"
+                }
+            },
+            spawnEntityPainting: {
+                id: 0x10,
+                fields: {
+                    entityId: "varint",
+                    title: "string",
+                    location: "position",
+                    direction: "ubyte"
+                }
+            },
+            spawnEntityExperienceOrb: {
+                id: 0x11,
+                fields: {
+                    entityId: "varint",
+                    x: "int",
+                    y: "int",
+                    z: "int",
+                    count: "short"
+                }
+            }
         }
     }
 };
