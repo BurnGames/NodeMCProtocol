@@ -1,6 +1,7 @@
 {
   "name": "NodeMCProtocol",
   "version": "0.0.1",
+  "main": "./src/server/Server.js",
   "dependencies": {
     "node-rsa": "0.2.13",
     "request": "2.53.0"
