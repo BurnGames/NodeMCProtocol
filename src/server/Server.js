@@ -21,7 +21,6 @@ function Server(ip, port) {
     this.rsa = new NodeRSA();
     this.rsa.generateKeyPair(1024, 65537);
     this.key = (this.rsa.exportKey('public') + "\n").toString('utf-8');
-    console.log("Key: " + this.key);
 
     this.server = net.createServer(function (socket) {
         $this.connections.push(new Connection($this, socket, $this.getPlayerListener()));
@@ -90,7 +89,6 @@ Server.prototype.getResponse = function () {
             });
         }
     }
-    console.log('Connections: ' + this.connections.length);
     return {
         version: {
             name: '1.8.1',

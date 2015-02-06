@@ -18,7 +18,6 @@ function Connection(server, socket, player) {
     player.ip = socket.remoteAddress;
 
     var incoming = new Buffer(0);
-    console.log('New connection for ' + this.ip + ":" + socket.remotePort);
     this.socket.on('data', function (data) {
         incoming = Buffer.concat([incoming, data]);
         var parsed;

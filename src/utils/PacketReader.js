@@ -659,7 +659,6 @@ function readCount(buffer, offset, typeArgs, rootNode) {
 }
 
 function sizeOfCount(value, typeArgs, rootNode) {
-    console.log(JSON.stringify(typeArgs));
     return sizeOf(getField(typeArgs.countFor, rootNode).length, {type: typeArgs.type}, rootNode);
 }
 
