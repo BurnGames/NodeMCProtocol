@@ -19,6 +19,9 @@ function Connection(server, socket, player) {
 
     var incoming = new Buffer(0);
     this.socket.on('data', function (data) {
+        if ($this.closed) {
+            return;
+        }
         incoming = Buffer.concat([incoming, data]);
         var parsed;
         var packet;
@@ -36,10 +39,23 @@ function Connection(server, socket, player) {
             $this.onIncomingPacket(packetName, packet);
         }
     });
+    this.socket.on('error', function (error) {
+        console.warn('Encountered error with connection');
+        throw error;
+    });
     this.socket.on('close', function () {
+        if ($this.player.username) {
+            console.log($this.player.username + ' (' + $this.player.uuid + ') has disconnected.');
+        }
         $this.server.onDisconnect($this);
+        $this.closed = true;
     });
 }
+
+Connection.prototype.close = function () {
+    this.socket.end();
+    this.closed = true;
+};
 
 Connection.prototype.onIncomingPacket = function (packetName, packet) {
     var $this = this;
@@ -60,7 +76,6 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
         }
     } else if (this.status == PacketStatus.LOGIN) {
         if (packetName == 'loginStart') {
-            console.log('Starting login process for ' + this.ip);
             UUIDLookup.findUUID(packet.username, function (err, uuid) {
                 if (err) {
                     throw err;
@@ -104,11 +119,19 @@ Connection.prototype.startEncryption = function () {
 
 Connection.prototype.finishLogin = function () {
     this.write(0x02, {uuid: this.player.uuid, username: this.player.username});
-    //this.write(0x03, {threshold: -1});
+    //this.write(0x03, {threshold: -1}); todo fix compression
     this.status = PacketStatus.PLAY;
     this.player.setConnected(true);
     // send location
-    this.write(0x01, {entityId: 1, gameMode: 0, dimension: 0, difficulty: 0, maxPlayers: this.server.getMaxPlayers(), levelType: 'default', reducedDebugMode: false});
+    this.write(0x01, {
+        entityId: 1,
+        gameMode: 0,
+        dimension: 0,
+        difficulty: 0,
+        maxPlayers: this.server.getMaxPlayers(),
+        levelType: 'default',
+        reducedDebugMode: false
+    });
 };
 
 Connection.prototype.ping = function () {
@@ -132,6 +155,9 @@ Connection.prototype.write = function (packetId, params) {
     this.reader.compressPacketBuffer(packetId, buffer, this.status == PacketStatus.STATUS, function (err, buffer) {
         if (err) {
             throw err;
+        }
+        if ($this.closed) {
+            return;
         }
         $this.socket.write(buffer);
     });
