@@ -60,7 +60,7 @@ Server.prototype.stop = function () {
     if (!this.listening) {
         throw new Error('Server has not been started!');
     }
-    for (var i = 0; i < this.connections.length; i++) {
+    for(var i = 0; i < this.connections.length; i++) {
         this.connections[i].close();
     }
     this.server.close();
@@ -97,10 +97,12 @@ Server.prototype.getResponse = function () {
     var sample = [];
     for (var i = 0; i < this.players.length; i++) {
         var player = this.players[i].player;
-        sample.push({
-            name: player.username,
-            uuid: player.uuid
-        });
+        if (player.connected) {
+            sample.push({
+                name: player.username,
+                uuid: player.uuid
+            });
+        }
     }
     return {
         version: {
