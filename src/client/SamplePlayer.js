@@ -22,4 +22,8 @@ SamplePlayer.prototype.setConnected = function(connected) {
     this.connected = connected;
 };
 
+SamplePlayer.prototype.toString = function() {
+    return this.username + ' (' + this.uuid + ')';
+};
+
 module.exports = SamplePlayer;

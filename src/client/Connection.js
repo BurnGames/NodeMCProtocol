@@ -40,12 +40,19 @@ function Connection(server, socket, player) {
         }
     });
     this.socket.on('error', function (error) {
-        console.warn('Encountered error with connection');
-        throw error;
+        if ($this.player.username) {
+            console.log($this.player + ' has disconnected.');
+        }
+        $this.server.onDisconnect($this);
+        $this.closed = true;
     });
     this.socket.on('close', function () {
+        if ($this.closed) {
+            console.log($this.player + ' disconnected twice.');
+            return;
+        }
         if ($this.player.username) {
-            console.log($this.player.username + ' (' + $this.player.uuid + ') has disconnected.');
+            console.log($this.player + ' has disconnected.');
         }
         $this.server.onDisconnect($this);
         $this.closed = true;
@@ -93,7 +100,6 @@ Connection.prototype.onIncomingPacket = function (packetName, packet) {
         if (packetName == 'keepAlive') {
             this.write(0x00, {keepAliveId: Math.floor(Math.random() * 2147483647)}); // 2147483647 is the highest possible varint
         } else if (packetName == 'position') {
-            delete packet.id;
             this.player.updatePosition(packet);
         }
     }
@@ -119,11 +125,14 @@ Connection.prototype.startEncryption = function () {
 
 Connection.prototype.finishLogin = function () {
     this.write(0x02, {uuid: this.player.uuid, username: this.player.username});
-    //this.write(0x03, {threshold: -1}); todo fix compression
+    // todo fix compression
+    //this.write(0x03, {threshold: 256});
+    //this.compression = 256;
     this.status = PacketStatus.PLAY;
     this.player.setConnected(true);
+    this.server.onConnect(this);
     // send location
-    this.write(0x01, {
+    this.write(0x1, {
         entityId: 1,
         gameMode: 0,
         dimension: 0,
@@ -132,7 +141,15 @@ Connection.prototype.finishLogin = function () {
         levelType: 'default',
         reducedDebugMode: false
     });
+    console.log(this.player + ' has connected.');
+
+    this.write(0x08, {x: 0, y: 100, z: 0, yaw: 0, pitch: 0, flags: 0});
+    this.write(0x02, {message: JSON.stringify({text: "Welcome to the Node Minecraft Server!"}), position: 0});
 };
+
+Connection.prototype.sendChunk = function (chunk) {
+    this.write(0x21, {x: 0, y: 0, chunk: {entireChunk: true, skylight: true, sectionBitmask: 0, chunk: chunk}});
+}
 
 Connection.prototype.ping = function () {
     // send em a proper ping!
@@ -152,7 +169,7 @@ Connection.prototype.write = function (packetId, params) {
     }
 
     var buffer = this.handler.createPacketBuffer(packetId, $this.status, params);
-    this.reader.compressPacketBuffer(packetId, buffer, this.status == PacketStatus.STATUS, function (err, buffer) {
+    this.reader.compressPacketBuffer(packetId, buffer, this.status == PacketStatus.STATUS, this.compression, function (err, buffer) {
         if (err) {
             throw err;
         }

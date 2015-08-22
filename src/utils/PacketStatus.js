@@ -423,6 +423,46 @@ var states = {
                     vehicleId: "int",
                     leash: "bool"
                 }
+            },
+            entityMetadata: {
+                id: 0x1c,
+                fields: {
+                    entityId: "varint",
+                    metadata: "metadata"
+                }
+            },
+            entityEffect: {
+                id: 0x1d,
+                fields: {
+                    entityId: "varint",
+                    effectId: "byte",
+                    amplifier: "byte",
+                    duration: "varint",
+                    hideParticles: "bool"
+                }
+            },
+            removeEntityEffect: {
+                id: 0x1E,
+                fields: {
+                    entityId: "varint",
+                    effectId: "byte"
+                }
+            },
+            setExperience: {
+                id: 0x1F,
+                fields: {
+                    experience: "float",
+                    level: "varint",
+                    total: "varint"
+                }
+            },
+            chunkData: {
+                id: 0x21,
+                fields: {
+                    x: "int",
+                    y: "int",
+                    data: "chunk"
+                }
             }
         },
         server: {

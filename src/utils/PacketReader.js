@@ -1,4 +1,5 @@
 var zlib = require('zlib');
+var varint = require('varint');
 
 var entityMetadataTypes = {
     0: {type: 'byte'},
@@ -33,6 +34,8 @@ var types = {
     'string': [readString, writeString, sizeOfString],
     'ustring': [readString, writeString, sizeOfUString],
     'UUID': [readUUID, writeUUID, 16],
+    'chunk': [function () {
+    }, writeChunk, sizeOfChunk],
     'container': [readContainer, writeContainer, sizeOfContainer],
     'array': [readArray, writeArray, sizeOfArray],
     'buffer': [readBuffer, writeBuffer, sizeOfBuffer],
@@ -71,22 +74,15 @@ PacketReader.prototype.read = read;
 PacketReader.prototype.write = write;
 PacketReader.prototype.sizeOf = sizeOf;
 PacketReader.prototype.compressPacketBuffer = function (packetId, buffer, handshakng, compression, callback) {
-    if (compression !== true && compression !== false) {
-        callback = compression;
-        compression = false;
-    }
-    if (compression) {
+    if (compression && buffer.length >= compression) {
         var uncompressedLength = buffer.length;
-        zlib.deflateRaw(buffer, function (err, buffer) {
+        zlib.deflate(buffer, function (err, buffer) {
             if (err) {
                 return callback(err);
             }
-            var dataLength = sizeOfVarInt(buffer.length);
-            var packetLength = dataLength + sizeOfVarInt(uncompressedLength);
-            var packet = new Buffer(packetLength);
-            var cursor = writeVarInt(packetLength, packet, 0);
-            cursor = writeVarInt(dataLength, packet, cursor);
-            writeBuffer(buf, packet, cursor);
+            var buf = new Buffer(sizeOfVarInt(uncompressedLength) + buffer.length);
+            var offset = writeVarInt(uncompressedLength, buf, 0);
+            buffer.copy(buf, offset);
             callback(undefined, packet);
         });
     } else {
@@ -219,17 +215,6 @@ function writeInt(value, buffer, offset) {
     return offset + 4;
 }
 
-function writeVarInt(value, buffer, offset) {
-    var cursor = 0;
-    while (value & ~0x7F) {
-        buffer.writeUInt8((value & 0xFF) | 0x80, offset + cursor);
-        cursor++;
-        value >>>= 7;
-    }
-    buffer.writeUInt8(value, offset + cursor);
-    return offset + cursor + 1;
-}
-
 function readInt(buffer, offset) {
     if (offset + 4 > buffer.length) {
         return null;
@@ -241,35 +226,21 @@ function readInt(buffer, offset) {
     };
 }
 
+function writeVarInt(value, buffer, offset) {
+    varint.encode(value, buffer, offset);
+    return varint.encode.bytes + offset;
+}
+
 function readVarInt(buffer, offset) {
-    var result = 0;
-    var shift = 0;
-    var cursor = offset;
-    var i = 0;
-    while (true) {
-        if (cursor + 1 > buffer.length) {
-            return undefined;
-        }
-        var b = buffer.readUInt8(cursor);
-        result |= ((b & 0x7f) << shift); // Add the bits to our number, except MSB
-        cursor++;
-        if (!(b & 0x80)) { // If the MSB is not set, we return the number
-            return {
-                value: result,
-                size: cursor - offset
-            };
-        }
-        shift += 7; // we only have 7 bits, MSB being the return-trigger
-    }
+    var bytes = varint.decode([buffer[offset], buffer[offset + 1]]);
+    return {
+        value: bytes,
+        size: varint.decode.bytes
+    };
 }
 
 function sizeOfVarInt(value) {
-    var cursor = 0;
-    while (value & ~0x7F) {
-        value >>>= 7;
-        cursor++;
-    }
-    return cursor + 1;
+    return varint.encodingLength(value);
 }
 
 
@@ -644,6 +615,148 @@ function readUUID(buffer, offset) {
         ],
         size: 16
     };
+}
+
+//
+// Chunk
+//
+
+function writeChunk(value, buffer, offset) {
+    var skylight = value.skylight || true;
+    var entireChunk = value.entireChunk || true;
+    var sectionBitmask = value.sectionBitmask || 0;
+    var chunk = value.chunk;
+
+    var sectionCount = 0;
+    if (!chunk.sections) {
+        sectionBitmask = 0;
+        sectionCount = 0;
+    } else {
+        var maxBitmask = (1 << chunk.sections.length) - 1;
+        if (entireChunk) {
+            sectionBitmask = maxBitmask;
+            sectionCount = chunk.sections.length;
+        } else {
+            sectionBitmask &= maxBitmask;
+            var tempBitmask = sectionBitmask;
+            for (; tempBitmask > 0; sectionCount++) {
+                tempBitmask &= tempBitmask - 1;
+            }
+        }
+
+        for (var i = 0; i < chunk.sections.length; i++) {
+            if (chunk.sections[i] && chunk.sections[i].count == 0) {
+                sectionBitmask &= ~(1 << i);
+                sectionCount--;
+            }
+        }
+    }
+    var byteSize = 0;
+
+    if (chunk.sections) {
+        var numBlocks = 16 * 16 * 16;
+        var sectionSize = numBlocks * 5 / 2;
+        if (skylight) {
+            sectionSize += numBlocks / 2;
+        }
+        byteSize += sectionCount * sectionSize;
+    }
+
+    if (entireChunk) {
+        byteSize += 256; // add biomes
+    }
+
+    offset = writeBool(entireChunk, buffer, offset);
+    offset = writeUShort(sectionBitmask);
+    offset = writeVarInt(byteSize, buffer, offset);
+
+    var tileData = buffer;
+    var pos = offset;
+
+    if (chunk.sections) {
+        var sendSections = [];
+        for (var k = 0, j = 0, mask = 1; i < chunk.sections.length; ++k, mask <<= 1) {
+            if ((sectionBitmask & mask) != 0) {
+                sendSections[j++] = chunk.sections[k];
+            }
+        }
+
+        for (i = 0; i < sendSections.length; i++) {
+            var section = sendSections[i];
+            for (j = 0; j < section.types.length; j++) {
+                var type = section.types[j];
+                tileData[pos++] = type & 0xff;
+                tileData[pos++] = type >> 8;
+            }
+        }
+
+        for (i = 0; i < sendSections.length; i++) {
+            section = sendSections[i];
+            var blockLight = section.blockLight.getRawData();
+            for (var max = blockLight.length + pos, l = 0; pos < max; l++, pos++) {
+                tileData[pos] = blockLight[l];
+            }
+        }
+
+        if (skylight) {
+            for (i = 0; i < sendSections.length; i++) {
+                section = sendSections[i];
+                var skyLight = section.skyLight.getRawData();
+                for (max = blockLight.length + pos, l = 0; pos < max; l++, pos++) {
+                    tileData[pos] = skyLight[l];
+                }
+            }
+        }
+    }
+
+    if (entireChunk) {
+        for (i = 0; i < 256; i++) {
+            tileData[pos++] = 0;
+        }
+    }
+
+    if (pos != byteSize) {
+        throw new Error('Only wrote ' + pos + ' out of expected ' + byteSize + ' bytes');
+    }
+
+    return byteSize;
+}
+
+function sizeOfChunk(value) {
+    var skylight = value.skylight || true;
+    var entireChunk = value.entireChunk || true;
+    var chunk = value.chunk;
+
+    var sectionCount = 0;
+    if (!chunk.sections) {
+        sectionCount = 0;
+    } else {
+        if (entireChunk) {
+            sectionCount = chunk.sections.length;
+        }
+
+        for (var i = 0; i < chunk.sections.length; i++) {
+            if (chunk.sections[i] && chunk.sections[i].count == 0) {
+                sectionCount--;
+            }
+        }
+    }
+    var byteSize = 0;
+
+    if (chunk.sections) {
+        var numBlocks = 16 * 16 * 16;
+        var sectionSize = numBlocks * 5 / 2;
+        if (skylight) {
+            sectionSize += numBlocks / 2;
+        }
+        byteSize += sectionCount * sectionSize;
+    }
+
+    if (entireChunk) {
+        byteSize += 256; // add biomes
+    }
+
+    return byteSize;
 }
 
 //

@@ -4,6 +4,7 @@
   "main": "./src/server/Server.js",
   "dependencies": {
     "node-rsa": "0.2.13",
-    "request": "2.53.0"
+    "request": "2.53.0",
+    "varint": "^4.0.0"
   }
 }

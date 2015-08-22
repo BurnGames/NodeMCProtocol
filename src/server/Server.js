@@ -16,6 +16,7 @@ function Server(ip, port) {
     this.port = port;
 
     this.connections = [];
+    this.players = [];
 
     // generate our ssl key
     this.rsa = new NodeRSA();
@@ -66,6 +67,17 @@ Server.prototype.stop = function () {
     console.log('Server closed.');
 };
 
+Server.prototype.onConnect = function (connection) {
+    var length = this.connections.length;
+    while (length--) {
+        if (this.connections[length] == connection) {
+            this.connections.splice(length, 1);
+        }
+    }
+
+    this.players.push(connection);
+};
+
 Server.prototype.onDisconnect = function (connection) {
     var length = this.connections.length;
     while (length--) {
@@ -103,7 +115,7 @@ Server.prototype.getResponse = function () {
             sample: sample
         },
         description: {
-            text: 'Node Minecraft Server'
+            text: 'Node Minecraft Server\nProtocol'
         },
         favicon: this.getFavicon()
     };
