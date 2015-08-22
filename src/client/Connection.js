@@ -144,7 +144,6 @@ Connection.prototype.finishLogin = function () {
     console.log(this.player + ' has connected.');
 
     this.write(0x08, {x: 0, y: 100, z: 0, yaw: 0, pitch: 0, flags: 0});
-    this.write(0x02, {message: JSON.stringify({text: "Welcome to the Node Minecraft Server!"}), position: 0});
 };
 
 Connection.prototype.sendChunk = function (chunk) {
