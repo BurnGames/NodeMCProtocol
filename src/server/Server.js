@@ -16,7 +16,6 @@ function Server(ip, port) {
     this.port = port;
 
     this.connections = [];
-    this.players = [];
 
     // generate our ssl key
     this.rsa = new NodeRSA();
@@ -74,8 +73,6 @@ Server.prototype.onConnect = function (connection) {
             this.connections.splice(length, 1);
         }
     }
-
-    this.players.push(connection);
 };
 
 Server.prototype.onDisconnect = function (connection) {
@@ -95,8 +92,8 @@ Server.prototype.getPlayerListener = function () {
 Server.prototype.getResponse = function () {
     // should be mostly overridden
     var sample = [];
-    for (var i = 0; i < this.players.length; i++) {
-        var player = this.players[i].player;
+    for (var i = 0; i < this.connections.length; i++) {
+        var player = this.connections[i].player;
         if (player.connected) {
             sample.push({
                 name: player.username,
