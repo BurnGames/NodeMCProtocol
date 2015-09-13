@@ -16,6 +16,7 @@ function Connection(server, socket, player) {
     this.reader = new PacketReader();
 
     player.ip = socket.remoteAddress;
+    player.connection = this;
 
     var incoming = new Buffer(0);
     this.socket.on('data', function (data) {

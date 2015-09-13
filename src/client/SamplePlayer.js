@@ -1,5 +1,6 @@
 function SamplePlayer() {
     this.connected = false;
+    this.connection = null;
     this.username = null;
     this.uuid = null;
     this.coords = {x: null, y: null, z: null};
